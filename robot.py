@@ -1,8 +1,7 @@
-#!/usr/bin/env python3
-
 import phoenix5
 import wpilib
 import math
+from wpilib.interfaces import Gyro
 
 
 class SwerveDriveRobot(wpilib.TimedRobot):
@@ -24,26 +23,23 @@ class SwerveDriveRobot(wpilib.TimedRobot):
         # Joystick for control
         self.joystick = wpilib.Joystick(0)
 
+        # Gyro for field-relative control
+        self.gyro = wpilib.ADXRS450_Gyro(wpilib.SPI.Port.kOnboardCS0)
+        self.gyro.calibrate()
+
         # Initialize turning motors with Lamprey 2 absolute encoders
         for i, motor in enumerate(self.turning_motors):
-            # Configure feedback sensor
             motor.configSelectedFeedbackSensor(
                 phoenix5.FeedbackDevice.CTRE_MagEncoder_Absolute,
                 self.kPIDLoopIdx,
                 self.kTimeoutMs,
             )
-
-            # Sensor phase to ensure correct direction
             motor.setSensorPhase(True)
             motor.setInverted(False)
-
-            # Configure output settings
             motor.configNominalOutputForward(0, self.kTimeoutMs)
             motor.configNominalOutputReverse(0, self.kTimeoutMs)
             motor.configPeakOutputForward(1, self.kTimeoutMs)
             motor.configPeakOutputReverse(-1, self.kTimeoutMs)
-
-            # Set PID values for turning motors
             motor.configAllowableClosedloopError(0, self.kPIDLoopIdx, self.kTimeoutMs)
             motor.selectProfileSlot(self.kSlotIdx, self.kPIDLoopIdx)
             motor.config_kF(0, 0, self.kTimeoutMs)
@@ -51,17 +47,14 @@ class SwerveDriveRobot(wpilib.TimedRobot):
             motor.config_kI(0, 0, self.kTimeoutMs)
             motor.config_kD(0, 0, self.kTimeoutMs)
 
-            
     def calculateSwerveOutputs(self, x, y, rotation):
         """
         Calculate the drive and turn outputs for each swerve module
         """
-        # Robot dimensions for wheelbase and track width
         wheelbase = 0.5  # Meters
         track_width = 0.5  # Meters
         r = math.sqrt((wheelbase / 2) ** 2 + (track_width / 2) ** 2)
 
-        # Calculate speed and angle for each wheel
         a = x - rotation * (wheelbase / r)
         b = x + rotation * (wheelbase / r)
         c = y - rotation * (track_width / r)
@@ -91,6 +84,14 @@ class SwerveDriveRobot(wpilib.TimedRobot):
         x = self.joystick.getX()  # Lateral movement
         y = -self.joystick.getY()  # Forward movement
         rotation = self.joystick.getZ()  # Rotation
+
+        # Get gyro angle in radians
+        gyro_angle = math.radians(self.gyro.getAngle())
+
+        # Field-relative transformations
+        temp_x = x * math.cos(gyro_angle) - y * math.sin(gyro_angle)
+        temp_y = x * math.sin(gyro_angle) + y * math.cos(gyro_angle)
+        x, y = temp_x, temp_y
 
         speeds, angles = self.calculateSwerveOutputs(x, y, rotation)
 

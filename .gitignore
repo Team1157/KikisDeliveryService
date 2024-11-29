@@ -20,3 +20,4 @@ opkg_cache
 pip_cache
 
 networktables.*
+ctre_sim/

@@ -1,7 +1,9 @@
+import phoenix6
 import phoenix5
 import wpilib
 import math
 from wpilib.interfaces import Gyro
+from networktables import NetworkTablesInstance
 
 
 class SwerveDriveRobot(wpilib.TimedRobot):
@@ -12,7 +14,7 @@ class SwerveDriveRobot(wpilib.TimedRobot):
     def robotInit(self):
         # Drive motors
         self.drive_motors = [
-            phoenix5.WPI_TalonFX(i) for i in range(1, 5)  # Falcon 500 motors
+            phoenix6.hardware.TalonFX(i) for i in range(1, 5)  # Falcon 500 motors
         ]
 
         # Turning motors
@@ -46,6 +48,11 @@ class SwerveDriveRobot(wpilib.TimedRobot):
             motor.config_kP(0, 0.1, self.kTimeoutMs)
             motor.config_kI(0, 0, self.kTimeoutMs)
             motor.config_kD(0, 0, self.kTimeoutMs)
+
+        # NetworkTables for AdvantageScope
+        self.nt_instance = NetworkTablesInstance.getDefault()
+        self.nt_instance.startServer()
+        self.swerve_publisher = self.nt_instance.getTable("SmartDashboard").getEntry("SwerveStates")
 
     def calculateSwerveOutputs(self, x, y, rotation):
         """
@@ -97,11 +104,16 @@ class SwerveDriveRobot(wpilib.TimedRobot):
 
         for i in range(4):
             # Set drive motor speed
-            self.drive_motors[i].set(phoenix5.ControlMode.PercentOutput, speeds[i])
+            self.drive_motors[i].set_control(speeds[i])
 
             # Set turning motor to target position
             target_position = angles[i] * (4096 / 360.0)  # Convert degrees to encoder units
             self.turning_motors[i].set(phoenix5.ControlMode.Position, target_position)
+
+            # Publish individual module states
+            self.nt_instance.getTable("AdvantageScope").getEntry(f"Module{i+1}_Speed").setValue(speeds[i])
+            self.nt_instance.getTable("AdvantageScope").getEntry(f"Module{i+1}_Angle").setValue(angles[i])
+
 
 
 if __name__ == "__main__":
